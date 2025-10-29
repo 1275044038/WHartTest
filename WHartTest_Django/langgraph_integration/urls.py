@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import LLMConfigViewSet, ChatAPIView, ChatHistoryAPIView, UserChatSessionsAPIView, ChatStreamAPIView, KnowledgeRAGAPIView, ProviderChoicesAPIView
+from .views import LLMConfigViewSet, ChatAPIView, ChatHistoryAPIView, UserChatSessionsAPIView, ChatStreamAPIView, KnowledgeRAGAPIView, ProviderChoicesAPIView, ChatBatchDeleteAPIView
 
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
@@ -15,5 +15,6 @@ urlpatterns = [
     path('chat/stream/', ChatStreamAPIView.as_view(), name='chat_stream_api'),
     path('chat/history/', ChatHistoryAPIView.as_view(), name='chat_history_api'),
     path('chat/sessions/', UserChatSessionsAPIView.as_view(), name='user_chat_sessions_api'),
+    path('chat/batch-delete/', ChatBatchDeleteAPIView.as_view(), name='chat_batch_delete_api'),
     path('knowledge/rag/', KnowledgeRAGAPIView.as_view(), name='knowledge_rag_api'),
 ]

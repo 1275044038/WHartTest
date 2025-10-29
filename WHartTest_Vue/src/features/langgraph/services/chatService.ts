@@ -417,3 +417,40 @@ export async function getChatSessions(projectId: number): Promise<ApiResponse<Ch
     };
   }
 }
+
+/**
+ * 批量删除聊天历史记录
+ * @param sessionIds 要删除的会话ID数组
+ * @param projectId 项目ID
+ */
+export async function batchDeleteChatHistory(
+  sessionIds: string[],
+  projectId: number | string
+): Promise<ApiResponse<{ deleted_count: number; processed_sessions: number; failed_sessions: any[] }>> {
+  const response = await request<{ deleted_count: number; processed_sessions: number; failed_sessions: any[] }>({
+    url: `${API_BASE_URL}/batch-delete/`,
+    method: 'POST',
+    data: {
+      session_ids: sessionIds,
+      project_id: String(projectId)
+    }
+  });
+
+  if (response.success) {
+    return {
+      status: 'success',
+      code: 200,
+      message: response.message || '批量删除成功',
+      data: response.data!,
+      errors: undefined
+    };
+  } else {
+    return {
+      status: 'error',
+      code: 500,
+      message: response.error || '批量删除失败',
+      data: { deleted_count: 0, processed_sessions: 0, failed_sessions: [] },
+      errors: { detail: [response.error || 'Unknown error'] }
+    };
+  }
+}

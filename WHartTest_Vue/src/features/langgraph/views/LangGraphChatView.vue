@@ -8,6 +8,7 @@
       @create-new-chat="createNewChat"
       @switch-session="switchSession"
       @delete-session="deleteSession"
+      @batch-delete-sessions="batchDeleteSessions"
     />
 
     <!-- 右侧聊天区域 -->
@@ -66,6 +67,7 @@ import {
   sendChatMessageStream,
   getChatHistory,
   deleteChatHistory,
+  batchDeleteChatHistory,
   getChatSessions,
   activeStreams,
   clearStreamState
@@ -587,6 +589,51 @@ const deleteSession = async (id: string) => {
       }
     },
   });
+};
+
+// 批量删除会话
+const batchDeleteSessions = async (sessionIds: string[]) => {
+  try {
+    if (!projectStore.currentProjectId) {
+      Message.error('没有选择项目，无法删除会话');
+      return;
+    }
+
+    isLoading.value = true;
+    const response = await batchDeleteChatHistory(sessionIds, projectStore.currentProjectId);
+
+    if (response.status === 'success') {
+      const { deleted_count, processed_sessions, failed_sessions } = response.data;
+      
+      // 从列表中移除已删除的会话
+      chatSessions.value = chatSessions.value.filter(s => !sessionIds.includes(s.id));
+      saveSessionsToStorage();
+
+      // 如果删除的包含当前会话，清除当前状态
+      if (sessionIds.includes(sessionId.value)) {
+        sessionId.value = '';
+        localStorage.removeItem('langgraph_session_id');
+        messages.value = [];
+      }
+
+      // 重新加载会话列表
+      await loadSessionsFromServer();
+
+      // 显示结果消息
+      if (failed_sessions.length === 0) {
+        Message.success(`成功删除 ${processed_sessions} 个对话`);
+      } else {
+        Message.warning(`删除完成：成功 ${processed_sessions - failed_sessions.length} 个，失败 ${failed_sessions.length} 个`);
+      }
+    } else {
+      Message.error('批量删除对话失败');
+    }
+  } catch (error) {
+    console.error('批量删除对话失败:', error);
+    Message.error('批量删除对话失败，请稍后重试');
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 // 清除聊天历史

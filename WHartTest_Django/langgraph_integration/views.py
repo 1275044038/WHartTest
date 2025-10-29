@@ -1008,6 +1008,145 @@ class ChatHistoryAPIView(APIView):
                 conn.close()
 
 
+class ChatBatchDeleteAPIView(APIView):
+    """
+    API endpoint for batch deleting chat sessions.
+    批量删除聊天会话的API端点。
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _check_project_permission(self, user, project_id):
+        """检查用户是否有访问指定项目的权限"""
+        try:
+            project = Project.objects.get(id=project_id)
+            # 超级用户可以访问所有项目
+            if user.is_superuser:
+                return project
+            # 检查用户是否是项目成员
+            if ProjectMember.objects.filter(project=project, user=user).exists():
+                return project
+            return None
+        except Project.DoesNotExist:
+            return None
+
+    def post(self, request, *args, **kwargs):
+        """批量删除聊天会话"""
+        session_ids = request.data.get('session_ids', [])
+        project_id = request.data.get('project_id')
+
+        if not session_ids or not isinstance(session_ids, list):
+            return Response({
+                "status": "error", "code": status.HTTP_400_BAD_REQUEST,
+                "message": "session_ids must be a non-empty list.", "data": {},
+                "errors": {"session_ids": ["This field is required and must be a list."]}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not project_id:
+            return Response({
+                "status": "error", "code": status.HTTP_400_BAD_REQUEST,
+                "message": "project_id is required.", "data": {},
+                "errors": {"project_id": ["This field is required."]}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 检查项目权限
+        project = self._check_project_permission(request.user, project_id)
+        if not project:
+            return Response({
+                "status": "error", "code": status.HTTP_403_FORBIDDEN,
+                "message": "You don't have permission to access this project or project doesn't exist.", "data": {},
+                "errors": {"project_id": ["Permission denied or project not found."]}
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
+        
+        if not os.path.exists(db_path):
+            return Response({
+                "status": "success",
+                "code": status.HTTP_200_OK,
+                "message": "No chat history found to delete (history file does not exist).",
+                "data": {"deleted_count": 0, "failed_sessions": []}
+            }, status=status.HTTP_200_OK)
+
+        conn = None
+        total_deleted = 0
+        failed_sessions = []
+        
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            for session_id in session_ids:
+                try:
+                    # 构建thread_id
+                    thread_id_parts = [str(request.user.id), str(project_id), str(session_id)]
+                    thread_id = "_".join(thread_id_parts)
+
+                    # 删除对应的checkpoints
+                    cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+                    deleted_count = cursor.rowcount
+                    
+                    if deleted_count > 0:
+                        total_deleted += deleted_count
+                        logger.info(f"Deleted {deleted_count} records for session_id: {session_id}")
+                    else:
+                        logger.warning(f"No records found for session_id: {session_id}")
+                        failed_sessions.append({
+                            "session_id": session_id,
+                            "reason": "No records found"
+                        })
+                    
+                    # 同时删除Django中的ChatSession记录
+                    try:
+                        ChatSession.objects.filter(
+                            session_id=session_id,
+                            user=request.user,
+                            project=project
+                        ).delete()
+                    except Exception as e:
+                        logger.warning(f"Failed to delete ChatSession for {session_id}: {e}")
+                        
+                except Exception as e:
+                    logger.error(f"Error deleting session {session_id}: {e}")
+                    failed_sessions.append({
+                        "session_id": session_id,
+                        "reason": str(e)
+                    })
+
+            conn.commit()
+
+            message = f"Successfully deleted {total_deleted} checkpoint records from {len(session_ids)} sessions."
+            if failed_sessions:
+                message += f" {len(failed_sessions)} sessions failed or had no records."
+
+            return Response({
+                "status": "success", "code": status.HTTP_200_OK,
+                "message": message,
+                "data": {
+                    "deleted_count": total_deleted,
+                    "processed_sessions": len(session_ids),
+                    "failed_sessions": failed_sessions
+                }
+            }, status=status.HTTP_200_OK)
+
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error during batch delete: {e}", exc_info=True)
+            return Response({
+                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "message": f"Database error while batch deleting chat history: {str(e)}", "data": {},
+                "errors": {"database_error": [str(e)]}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"Unexpected error during batch delete: {e}", exc_info=True)
+            return Response({
+                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "message": f"An unexpected error occurred: {str(e)}", "data": {},
+                "errors": {"unexpected_error": [str(e)]}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        finally:
+            if conn:
+                conn.close()
+
+
 class UserChatSessionsAPIView(APIView):
     """
     API endpoint for listing all chat session IDs for the authenticated user in a specific project.
