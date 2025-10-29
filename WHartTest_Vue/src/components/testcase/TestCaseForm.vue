@@ -65,62 +65,85 @@
       <div class="steps-section">
         <div class="steps-header">
           <h3>测试步骤</h3>
-          <a-button type="primary" size="small" @click="addStep">
-            <template #icon><icon-plus /></template>
-            添加步骤
-          </a-button>
+          <a-space>
+            <a-tag color="blue" size="small" style="margin-right: 8px;">
+              <template #icon><icon-drag-dot-vertical /></template>
+              拖动步骤可调整顺序
+            </a-tag>
+            <a-button type="primary" size="small" @click="addStep">
+              <template #icon><icon-plus /></template>
+              添加步骤
+            </a-button>
+          </a-space>
         </div>
 
-        <a-table
-          :data="formState.steps"
-          :pagination="false"
-          :bordered="{ cell: true }"
-          class="steps-table"
-          row-key="temp_id"
-        >
-          <template #columns>
-            <a-table-column title="步骤" data-index="step_number" :width="80" />
-            <a-table-column title="步骤描述" data-index="description">
-              <template #cell="{ record, rowIndex }">
-                <a-textarea
-                  v-model="record.description"
-                  placeholder="请输入步骤描述"
-                  :auto-size="{ minRows: 1, maxRows: 4 }"
-                  @blur="validateStepField(rowIndex, 'description')"
-                />
-                <div class="field-error" v-if="stepErrors[rowIndex]?.description">
-                  {{ stepErrors[rowIndex].description }}
-                </div>
+        <div class="steps-table-container">
+          <table class="custom-steps-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">拖动</th>
+                <th style="width: 80px;">步骤</th>
+                <th>步骤描述</th>
+                <th>预期结果</th>
+                <th style="width: 120px;">操作</th>
+              </tr>
+            </thead>
+            <draggable
+              v-model="formState.steps"
+              tag="tbody"
+              item-key="temp_id"
+              handle=".drag-handle"
+              @end="handleDragEnd"
+              :animation="200"
+              ghost-class="ghost-row"
+              chosen-class="chosen-row"
+            >
+              <template #item="{ element: record, index: rowIndex }">
+                <tr :key="record.temp_id" class="step-row">
+                  <td class="drag-cell">
+                    <div class="drag-handle">
+                      <icon-drag-dot-vertical />
+                    </div>
+                  </td>
+                  <td class="step-number-cell">{{ record.step_number }}</td>
+                  <td class="step-content-cell">
+                    <a-textarea
+                      v-model="record.description"
+                      placeholder="请输入步骤描述"
+                      :auto-size="{ minRows: 1, maxRows: 4 }"
+                      @blur="validateStepField(rowIndex, 'description')"
+                    />
+                    <div class="field-error" v-if="stepErrors[rowIndex]?.description">
+                      {{ stepErrors[rowIndex].description }}
+                    </div>
+                  </td>
+                  <td class="step-content-cell">
+                    <a-textarea
+                      v-model="record.expected_result"
+                      placeholder="请输入预期结果"
+                      :auto-size="{ minRows: 1, maxRows: 4 }"
+                      @blur="validateStepField(rowIndex, 'expected_result')"
+                    />
+                    <div class="field-error" v-if="stepErrors[rowIndex]?.expected_result">
+                      {{ stepErrors[rowIndex].expected_result }}
+                    </div>
+                  </td>
+                  <td class="action-cell">
+                    <a-button
+                      v-if="formState.steps.length > 1"
+                      type="text"
+                      status="danger"
+                      size="small"
+                      @click="removeStep(rowIndex)"
+                    >
+                      删除
+                    </a-button>
+                  </td>
+                </tr>
               </template>
-            </a-table-column>
-            <a-table-column title="预期结果" data-index="expected_result">
-              <template #cell="{ record, rowIndex }">
-                <a-textarea
-                  v-model="record.expected_result"
-                  placeholder="请输入预期结果"
-                  :auto-size="{ minRows: 1, maxRows: 4 }"
-                  @blur="validateStepField(rowIndex, 'expected_result')"
-                />
-                <div class="field-error" v-if="stepErrors[rowIndex]?.expected_result">
-                  {{ stepErrors[rowIndex].expected_result }}
-                </div>
-              </template>
-            </a-table-column>
-            <a-table-column title="操作" :width="80">
-              <template #cell="{ rowIndex }">
-                <a-button
-                  v-if="formState.steps.length > 1"
-                  type="text"
-                  status="danger"
-                  size="small"
-                  @click="removeStep(rowIndex)"
-                >
-                  删除
-                </a-button>
-              </template>
-            </a-table-column>
-          </template>
-        </a-table>
+            </draggable>
+          </table>
+        </div>
       </div>
 
       <a-form-item field="notes" label="备注">
@@ -317,8 +340,9 @@
 <script setup lang="ts">
 import { ref, reactive, watch, toRefs, onMounted, computed } from 'vue';
 import { Message, Modal } from '@arco-design/web-vue';
-import { IconArrowLeft, IconPlus, IconEye, IconLeft, IconRight } from '@arco-design/web-vue/es/icon';
+import { IconArrowLeft, IconPlus, IconEye, IconLeft, IconRight, IconDragDotVertical } from '@arco-design/web-vue/es/icon';
 import type { FormInstance, TreeNodeData } from '@arco-design/web-vue';
+import draggable from 'vuedraggable';
 import {
   createTestCase,
   updateTestCase,
@@ -498,6 +522,18 @@ const addStep = () => {
 const removeStep = (index: number) => {
   formState.steps.splice(index, 1);
   stepErrors.value.splice(index, 1);
+  reorderSteps();
+};
+
+// 拖拽结束后重新编号
+const handleDragEnd = () => {
+  formState.steps.forEach((step, idx) => {
+    step.step_number = idx + 1;
+  });
+};
+
+// 删除步骤后重新编号
+const reorderSteps = () => {
   formState.steps.forEach((step, idx) => {
     step.step_number = idx + 1;
   });
@@ -559,7 +595,14 @@ const handleSubmit = async () => {
       }
 
       Message.success(isEditing.value ? '测试用例更新成功' : '测试用例创建成功');
-      emit('submitSuccess');
+      
+      // 编辑模式:保存后刷新当前页面数据
+      if (isEditing.value && formState.id) {
+        await fetchDetailsAndSetForm(formState.id);
+      } else {
+        // 新建模式:返回列表页
+        emit('submitSuccess');
+      }
     } else {
       Message.error(response.error || (isEditing.value ? '更新失败' : '创建失败'));
     }
@@ -882,17 +925,108 @@ const handleImageError = (_event: Event) => {
     }
   }
 
-  .steps-table {
-    margin-bottom: 16px;
+  /* 自定义步骤表格样式 */
+  .steps-table-container {
+    overflow-x: auto;
+  }
 
-    :deep(.arco-table-container) {
-      border-radius: 4px;
-    }
+  .custom-steps-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 4px;
+    overflow: hidden;
+  }
 
-    :deep(.arco-textarea) {
-      width: 100%;
-      resize: none;
-    }
+  .custom-steps-table thead {
+    background-color: #f7f8fa;
+  }
+
+  .custom-steps-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 500;
+    color: #1d2129;
+    border-bottom: 1px solid #e5e6eb;
+    font-size: 14px;
+  }
+
+  .custom-steps-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e5e6eb;
+    vertical-align: top;
+  }
+
+  .step-row {
+    background-color: #fff;
+    transition: background-color 0.2s ease;
+  }
+
+  .step-row:hover {
+    background-color: #f7f8fa;
+  }
+
+  /* 拖拽手柄样式 */
+  .drag-cell {
+    text-align: center;
+    cursor: move;
+  }
+
+  .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    color: #86909c;
+    cursor: move;
+    transition: all 0.2s ease;
+  }
+
+  .drag-handle:hover {
+    background-color: #e5e6eb;
+    color: #165dff;
+  }
+
+  .drag-handle:active {
+    background-color: #d4d5d9;
+  }
+
+  /* 步骤编号样式 */
+  .step-number-cell {
+    text-align: center;
+    font-weight: 500;
+    color: #1d2129;
+    font-size: 14px;
+  }
+
+  /* 步骤内容单元格 */
+  .step-content-cell {
+    min-width: 200px;
+  }
+
+  .step-content-cell :deep(.arco-textarea) {
+    width: 100%;
+    resize: none;
+  }
+
+  /* 操作列样式 */
+  .action-cell {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* 拖拽时的幽灵行样式 */
+  .ghost-row {
+    opacity: 0.5;
+    background-color: #e8f3ff;
+  }
+
+  /* 选中时的行样式 */
+  .chosen-row {
+    background-color: #f0f7ff;
+    box-shadow: 0 2px 8px rgba(22, 93, 255, 0.2);
   }
 
   .field-error {

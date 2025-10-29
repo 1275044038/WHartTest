@@ -121,10 +121,17 @@ class TestCaseSerializer(serializers.ModelSerializer):
             if step_ids_to_delete:
                 TestCaseStep.objects.filter(id__in=step_ids_to_delete, test_case=instance).delete()
 
-            # 重新编号并保存所有需要保留或新创建的步骤
+            # 为避免 unique constraint 冲突,先将所有现有步骤的 step_number 设置为临时大数值
+            # 使用 10000 + id 作为临时值,确保不与正常编号(1,2,3...)冲突
+            for step_obj in final_steps_to_process:
+                if step_obj.id:  # 只对已存在的步骤设置临时值
+                    step_obj.step_number = 10000 + step_obj.id  # 使用大数值作为临时值
+                    step_obj.save()
+            
+            # 然后重新编号并保存所有步骤
             for index, step_obj in enumerate(final_steps_to_process):
                 step_obj.step_number = index + 1
-                step_obj.save() # 这会处理创建新步骤或更新现有步骤
+                step_obj.save()  # 这会处理创建新步骤或更新现有步骤的最终编号
 
         return instance
 
