@@ -82,7 +82,7 @@
           <!-- 展开状态下显示测试管理子菜单 -->
           <template v-if="!collapsed && hasTestManagementMenuItems">
             <a-sub-menu key="test-management">
-              <template #icon><icon-code-block /></template>
+              <template #icon><icon-experiment /></template>
               <template #title>
                 <span @click="handleTestManagementClick">测试管理</span>
               </template>
@@ -105,7 +105,7 @@
           <template v-else-if="collapsed && hasTestManagementMenuItems">
             <a-menu-item key="test-management">
               <template #icon>
-                <icon-code-block @click="handleTestManagementClick" style="cursor: pointer;" />
+                <icon-experiment @click="handleTestManagementClick" style="cursor: pointer;" />
               </template>
               <span style="display: none;">测试管理</span>
             </a-menu-item>
@@ -226,6 +226,7 @@ import {
   IconBook,
   IconFolder,
   IconHistory,
+  IconExperiment,
 } from '@arco-design/web-vue/es/icon';
 import '@arco-design/web-vue/dist/arco.css'; // 引入 Arco Design 样式
 

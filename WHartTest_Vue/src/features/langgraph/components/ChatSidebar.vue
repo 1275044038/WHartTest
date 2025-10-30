@@ -79,7 +79,7 @@
             <div class="history-item-time">{{ formatTime(session.lastTime) }}</div>
           </div>
         </div>
-        <div class="history-item-actions">
+        <div v-if="selectedSessions.length === 0" class="history-item-actions">
           <a-button type="text" size="mini" @click.stop="$emit('delete-session', session.id)">
             <template #icon>
               <icon-delete style="color: #f53f3f;" />
@@ -144,11 +144,14 @@ const handleBatchDelete = () => {
     return;
   }
 
-  Modal.warning({
+  Modal.confirm({
     title: '确认批量删除',
     content: `确定要删除选中的 ${selectedSessions.value.length} 个对话吗？此操作不可恢复。`,
     okText: '确认删除',
     cancelText: '取消',
+    okButtonProps: {
+      status: 'danger',
+    },
     onOk: () => {
       emit('batch-delete-sessions', [...selectedSessions.value]);
       selectedSessions.value = [];
